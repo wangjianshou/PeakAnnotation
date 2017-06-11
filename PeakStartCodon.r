@@ -1,6 +1,6 @@
 #!/PUBLIC/software/RNA/R-3.1.2/R-3.1.2/bin/Rscript
 # PeakStartCodon.r gene.gtf *_peaks.narrowPeak...
-# argument <- c("gene.gtf", "peak")
+
 argument <- commandArgs(TRUE)
 options(stringsAsFactors=FALSE)
 options(digits=10)
@@ -12,7 +12,8 @@ library(ggplot2)
 ori_gtf <- fread(argument[1], header=F, data.table=T, sep="\t")
 setnames(ori_gtf, c("chr", "src", "type", "start_pos", "end_pos", "score", "strand", "codon", "info"))
 ori_gtf <- ori_gtf[type %in% c("exon", "start_codon")]
-ori_gtf[, `:=`(gene_id=gsub(".*gene_id \"(.*?)\";.*", "\\1", info),
+ori_gtf[, `:=`(chr=paste("chr", chr, sep=""),
+               gene_id=gsub(".*gene_id \"(.*?)\";.*", "\\1", info),
                transcript_id=gsub(".*transcript_id \"(.*?)\".*", "\\1", info),
                exon_num=as.integer(gsub(".*exon_number \"(\\d+)\".*", "\\1", info)),
                tr_biotype=gsub(".*transcript_biotype \"(.*?)\".*", "\\1", info),
@@ -47,7 +48,7 @@ for (chr in unique(gtf$chr)){
     eval(parse(text=paste(chr, " <- gtf[chr==", "\"", chr, "\"", "]", sep="")))
 }
 
-peakMock <- fread("Mock_peaks.narrowPeak", select=1:4, header=FALSE, sep="\t", data.table=TRUE)
+peakMock <- fread(argument[2], select=1:4, header=FALSE, sep="\t", data.table=TRUE)
 setnames(peakMock, c("chr", "start_pos", "end_pos", "peak_name"))
 peakMock <- peakMock[order(chr, start_pos)][, middle := floor(start_pos+(end_pos-start_pos)/2)]
 peakMock <- peakMock[, head(.SD, 1), by=.(chr, middle)]
@@ -99,19 +100,25 @@ peakMock[, c("transcript_id", "cls", "distance") := fun(chr, middle), by=.(chr, 
 peakMock <- peakMock[transcript_id != "NA"]
 write.table(peakMock, file="peakMock", quote=FALSE, sep="\t", row.names=FALSE, col.names=TRUE)
 
-peakALKBH3 <- fread("ALKBH3_peaks.narrowPeak", select=1:4, header=FALSE, sep="\t", data.table=TRUE)
-setnames(peakALKBH3, c("chr", "start_pos", "end_pos", "peak_name"))
-peakALKBH3 <- peakALKBH3[order(chr, start_pos)][, middle := floor(start_pos+(end_pos-start_pos)/2)]
-peakALKBH3 <- peakALKBH3[, head(.SD, 1), by=.(chr, middle)]
-peakALKBH3[, c("transcript_id", "cls", "distance") := fun(chr, middle), by=.(chr, middle)]
-peakALKBH3 <- peakALKBH3[transcript_id != "NA"]
-write.table(peakALKBH3, file="peakALKBH3", quote=FALSE, sep="\t", row.names=FALSE, col.names=TRUE)
+peakIP <- fread(argument[3], select=1:4, header=FALSE, sep="\t", data.table=TRUE)
+setnames(peakIP, c("chr", "start_pos", "end_pos", "peak_name"))
+peakIP <- peakIP[order(chr, start_pos)][, middle := floor(start_pos+(end_pos-start_pos)/2)]
+peakIP <- peakIP[, head(.SD, 1), by=.(chr, middle)]
+peakIP[, c("transcript_id", "cls", "distance") := fun(chr, middle), by=.(chr, middle)]
+peakIP <- peakIP[transcript_id != "NA"]
+write.table(peakIP, file="peakIP", quote=FALSE, sep="\t", row.names=FALSE, col.names=TRUE)
 
 Mock <- peakMock[, .(peak_name, transcript_id, cls, distance)
                 ][, clas := ifelse(cls==1, "aaa", ifelse(cls==2, "bbb", "ccc"))
                 ][, cls := NULL]
 MockAll <- Mock[, .SD][, clas := "ddd"]
 Mock <- rbind(Mock, MockAll)
+
+IP <- peakIP[, .(peak_name, transcript_id, cls, distance)
+                ][, clas := ifelse(cls==1, "aaa", ifelse(cls==2, "bbb", "ccc"))
+                ][, cls := NULL]
+IPAll <- IP[, .SD][, clas := "ddd"]
+IP <- rbind(IP, IPAll)
 
 
 
@@ -129,7 +136,7 @@ MockFig <- ggplot(data=Mock, aes(x=distance, group=clas)) +
            )
 ggsave(file="Mock.png", plot=MockFig, type="cairo", dpi=600)
 
-ALKBH3Fig <- ggplot(data=ALKBH3, aes(x=distance, group=clas)) +
+ALKBH3Fig <- ggplot(data=IP, aes(x=distance, group=clas)) +
            geom_line(aes(y=..count.., color=clas), adjust=0.5, stat="density") +
            labs(title="ALKBH3", x="Distance from 1st splice site(nucleotides)", y="Number of peaks") +
            scale_x_continuous(expand=c(0,0), limits=c(-3000,5000)) +
@@ -141,33 +148,4 @@ ALKBH3Fig <- ggplot(data=ALKBH3, aes(x=distance, group=clas)) +
            plot.title=element_text(size=15, vjust=1)
            )
 ggsave(file="ALKBH3.png", plot=ALKBH3Fig, type="cairo", dpi=600)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
